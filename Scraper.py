@@ -464,6 +464,9 @@ class Sheets:
         if not nickname: return {"status":"error","error":"Missing nickname","changed_fields":[]}
         if profile.get("LAST POST TIME"): profile["LAST POST TIME"]=convert_relative_date_to_absolute(profile["LAST POST TIME"])
         profile["DATETIME SCRAP"]=get_pkt_time().strftime("%d-%b-%y %I:%M %p")
+        tags_val=self.tags_mapping.get(nickname.lower())
+        if tags_val:
+            profile["TAGS"]=tags_val
         vals=[]
         for c in COLUMN_ORDER:
             if c=="IMAGE": v=""
@@ -471,9 +474,6 @@ class Sheets:
             elif c=="LAST POST": v="Post" if profile.get(c) else ""
             else: v=clean_data(profile.get(c,""))
             vals.append(v)
-        tags_val=self.tags_mapping.get(nickname.lower())
-        if tags_val:
-            profile["TAGS"]=tags_val
         key=nickname.lower(); ex=self.existing.get(key)
         if ex:
             before={COLUMN_ORDER[i]:(ex['data'][i] if i<len(ex['data']) else "") for i in range(len(COLUMN_ORDER))}
