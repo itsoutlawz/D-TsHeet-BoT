@@ -164,9 +164,33 @@ class Sheets:
         self.client=client; self.ss=client.open_by_url(SHEET_URL)
         self.ws=self._get_or_create("ProfilesTarget", cols=len(COLUMN_ORDER))
         self.target=self._get_or_create("Target", cols=4)
-        if not self.ws.get_all_values(): self.ws.append_row(COLUMN_ORDER); 
-        try: self.ws.freeze(rows=1)
-        except: pass
+        # Ensure headers for ProfilesTarget
+        try:
+            vals = self.ws.get_all_values()
+            if not vals or not vals[0] or all(not c for c in vals[0]):
+                log_msg("Initializing ProfilesTarget headers...")
+                self.ws.append_row(COLUMN_ORDER)
+                try: self.ws.freeze(rows=1)
+                except: pass
+        except Exception as e:
+            log_msg(f"Header init failed: {e}")
+        # Ensure headers for Target sheet
+        try:
+            tvals = self.target.get_all_values()
+            if not tvals or not tvals[0] or all(not c for c in tvals[0]):
+                log_msg("Initializing Target headers...")
+                self.target.append_row(["Nickname","Status","Remarks","Source"])
+        except Exception as e:
+            log_msg(f"Target header init failed: {e}")
+        # Dashboard worksheet
+        try:
+            self.dashboard = self._get_or_create("Dashboard", cols=11)
+            dvals = self.dashboard.get_all_values()
+            expected = ["Run#","Timestamp","Profiles","Success","Failed","New","Updated","Unchanged","Trigger","Start","End"]
+            if not dvals or dvals[0] != expected:
+                self.dashboard.clear(); self.dashboard.append_row(expected)
+        except Exception as e:
+            log_msg(f"Dashboard setup failed: {e}")
         self._format(); self._load_existing()
 
     def _get_or_create(self,name,cols=20,rows=1000):
@@ -190,6 +214,7 @@ class Sheets:
         rows=self.ws.get_all_values()[1:]
         for i,r in enumerate(rows,start=2):
             if len(r)>1 and r[1].strip(): self.existing[r[1].strip().lower()]={'row':i,'data':r}
+        log_msg(f"Loaded {len(self.existing)} existing")
 
     def _update_links(self,row_idx,data):
         for col in LINK_COLUMNS:
@@ -218,6 +243,25 @@ class Sheets:
         self.target.update(values=[[status]], range_name=f"B{row}")
         self.target.update(values=[[remarks]], range_name=f"C{row}")
         time.sleep(SHEET_WRITE_DELAY)
+
+    def update_dashboard(self, metrics:dict):
+        try:
+            row=[
+                metrics.get("Run Number",1),
+                metrics.get("Last Run", get_pkt_time().strftime("%d-%b-%y %I:%M %p")),
+                metrics.get("Profiles Processed",0),
+                metrics.get("Success",0),
+                metrics.get("Failed",0),
+                metrics.get("New Profiles",0),
+                metrics.get("Updated Profiles",0),
+                metrics.get("Unchanged Profiles",0),
+                metrics.get("Trigger", os.getenv('GITHUB_EVENT_NAME','manual')),
+                metrics.get("Start", get_pkt_time().strftime("%d-%b-%y %I:%M %p")),
+                metrics.get("End", get_pkt_time().strftime("%d-%b-%y %I:%M %p")),
+            ]
+            self.dashboard.append_row(row)
+        except Exception as e:
+            log_msg(f"Dashboard update failed: {e}")
 
     def write_profile(self, profile:dict, old_row:int|None=None):
         nickname=(profile.get("NICK NAME") or "").strip()
@@ -278,6 +322,7 @@ def main():
         targets=get_pending_targets(sheets)
         if not targets: print("No pending targets."); return
         if MAX_PROFILES_PER_RUN>0: targets=targets[:MAX_PROFILES_PER_RUN]
+        success=failed=0
         for i,t in enumerate(targets,1):
             nick=t['nickname']; row=t['row']
             log_msg(f"[{i}/{len(targets)}] {nick}")
@@ -285,12 +330,28 @@ def main():
                 prof=scrape_profile(driver, nick)
                 sheets.write_profile(prof, old_row=row)
                 sheets.update_target_status(row, "Done 💀", f"Done @ {get_pkt_time().strftime('%I:%M %p')}")
+                success+=1
             except Exception as e:
                 sheets.update_target_status(row, "⚡ Pending", f"Retry needed: {e}")
+                failed+=1
             if BATCH_SIZE>0 and i% BATCH_SIZE==0 and i<len(targets):
                 log_msg("Batch cool-off"); adaptive.on_batch(); time.sleep(3)
             adaptive.sleep()
         print("\n✅ Done")
+        # Dashboard update
+        sheets.update_dashboard({
+            "Run Number":1,
+            "Last Run": get_pkt_time().strftime("%d-%b-%y %I:%M %p"),
+            "Profiles Processed": len(targets),
+            "Success": success,
+            "Failed": failed,
+            "New Profiles": 0,
+            "Updated Profiles": 0,
+            "Unchanged Profiles": 0,
+            "Trigger": ("Scheduled" if os.getenv('GITHUB_EVENT_NAME','').lower()=='schedule' else "Manual"),
+            "Start": get_pkt_time().strftime("%d-%b-%y %I:%M %p"),
+            "End": get_pkt_time().strftime("%d-%b-%y %I:%M %p"),
+        })
     finally:
         try: driver.quit()
         except: pass
