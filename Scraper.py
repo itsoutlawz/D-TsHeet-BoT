@@ -19,6 +19,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.exceptions import WorksheetNotFound, APIError
 
 LOGIN_URL = "https://damadam.pk/login/"
 HOME_URL = "https://damadam.pk/"
@@ -44,8 +45,9 @@ COLUMN_ORDER = [
     "POSTS", "PROFILE LINK", "INTRO", "SOURCE", "DATETIME SCRAP"
 ]
 COLUMN_TO_INDEX = {name: idx for idx, name in enumerate(COLUMN_ORDER)}
-HIGHLIGHT_EXCLUDE_COLUMNS = {"LAST POST", "LAST POST TIME", "JOINED", "PROFILE LINK", "SOURCE", "DATETIME SCRAP"}
+HIGHLIGHT_EXCLUDE_COLUMNS = {"LAST POST", "LAST POST TIME", "JOINED", "PROFILE LINK", "DATETIME SCRAP"}
 LINK_COLUMNS = {"IMAGE", "LAST POST", "PROFILE LINK"}
+ENABLE_CELL_HIGHLIGHT = False
 
 # Helpers
 
@@ -77,6 +79,20 @@ def convert_relative_date_to_absolute(text:str)->str:
     if unit in s_map:
         dt=get_pkt_time()-timedelta(seconds=amt*s_map[unit]); return dt.strftime("%d-%b-%y")
     return text
+
+def calculate_eta(processed:int,total:int,start_ts:float)->str:
+    if processed==0:
+        return "Calculating..."
+    elapsed=time.time()-start_ts
+    rate=processed/elapsed if elapsed>0 else 0
+    remaining=total-processed
+    eta=remaining/rate if rate>0 else 0
+    if eta<60:
+        return f"{int(eta)}s"
+    if eta<3600:
+        return f"{int(eta//60)}m {int(eta%60)}s"
+    hrs=int(eta//3600); mins=int((eta%3600)//60)
+    return f"{hrs}h {mins}m"
 
 def clean_text(text:str)->str:
     if not text: return ""
@@ -245,8 +261,10 @@ def gsheets_client():
 class Sheets:
     def __init__(self, client):
         self.client=client; self.ss=client.open_by_url(SHEET_URL)
+        self.tags_mapping={}
         self.ws=self._get_or_create("ProfilesTarget", cols=len(COLUMN_ORDER))
         self.target=self._get_or_create("Target", cols=4)
+        self.tags_sheet=self._get_sheet_if_exists("Tags")
         # Ensure headers for ProfilesTarget
         try:
             vals = self.ws.get_all_values()
@@ -274,12 +292,19 @@ class Sheets:
                 self.dashboard.clear(); self.dashboard.append_row(expected)
         except Exception as e:
             log_msg(f"Dashboard setup failed: {e}")
-        self._format(); self._load_existing(); self.normalize_target_statuses()
+        self._format(); self._load_existing(); self._load_tags_mapping(); self.normalize_target_statuses()
 
     def _get_or_create(self,name,cols=20,rows=1000):
         try: return self.ss.worksheet(name)
-        except gspread.exceptions.WorksheetNotFound:
+        except WorksheetNotFound:
             return self.ss.add_worksheet(title=name, rows=rows, cols=cols)
+
+    def _get_sheet_if_exists(self,name):
+        try:
+            return self.ss.worksheet(name)
+        except WorksheetNotFound:
+            log_msg(f"{name} sheet not found, skipping optional features")
+            return None
 
     def _apply_banding(self, sheet, end_col, start_row=1):
         try:
@@ -302,8 +327,12 @@ class Sheets:
                 }
             }
             self.ss.batch_update({"requests":[req]})
-        except Exception as e:
-            log_msg(f"Banding failed: {e}")
+        except APIError as e:
+            msg=str(e)
+            if "already has alternating background colors" in msg:
+                log_msg(f"Banding already applied on {sheet.title}; skipping")
+            else:
+                log_msg(f"Banding failed: {e}")
 
     def _format(self):
         try:
@@ -331,6 +360,33 @@ class Sheets:
         for i,r in enumerate(rows,start=2):
             if len(r)>1 and r[1].strip(): self.existing[r[1].strip().lower()]={'row':i,'data':r}
         log_msg(f"Loaded {len(self.existing)} existing")
+
+    def _load_tags_mapping(self):
+        self.tags_mapping={}
+        if not self.tags_sheet:
+            return
+        try:
+            all_values=self.tags_sheet.get_all_values()
+            if not all_values or len(all_values)<2:
+                return
+            headers=all_values[0]
+            for col_idx, header in enumerate(headers):
+                tag_name=clean_data(header)
+                if not tag_name:
+                    continue
+                for row in all_values[1:]:
+                    if col_idx < len(row):
+                        nickname=row[col_idx].strip()
+                        if nickname:
+                            key=nickname.lower()
+                            if key in self.tags_mapping:
+                                if tag_name not in self.tags_mapping[key]:
+                                    self.tags_mapping[key]+=f", {tag_name}"
+                            else:
+                                self.tags_mapping[key]=tag_name
+            log_msg(f"Loaded {len(self.tags_mapping)} tags")
+        except Exception as e:
+            log_msg(f"Tags load failed: {e}")
 
     def _update_links(self,row_idx,data):
         for col in LINK_COLUMNS:
@@ -415,12 +471,18 @@ class Sheets:
             elif c=="LAST POST": v="Post" if profile.get(c) else ""
             else: v=clean_data(profile.get(c,""))
             vals.append(v)
+        tags_val=self.tags_mapping.get(nickname.lower())
+        if tags_val:
+            profile["TAGS"]=tags_val
         key=nickname.lower(); ex=self.existing.get(key)
         if ex:
             before={COLUMN_ORDER[i]:(ex['data'][i] if i<len(ex['data']) else "") for i in range(len(COLUMN_ORDER))}
             changed=[i for i,col in enumerate(COLUMN_ORDER) if col not in HIGHLIGHT_EXCLUDE_COLUMNS and (before.get(col,"") or "") != (vals[i] or "")]
             self.ws.insert_row(vals,2); self._update_links(2, profile)
-            if changed: self._highlight(2,changed); self._add_notes(2,changed,before,vals)
+            if changed:
+                if ENABLE_CELL_HIGHLIGHT:
+                    self._highlight(2,changed)
+                self._add_notes(2,changed,before,vals)
             try:
                 old=ex['row']+1 if ex['row']>=2 else 3; self.ws.delete_rows(old)
             except Exception as e:
