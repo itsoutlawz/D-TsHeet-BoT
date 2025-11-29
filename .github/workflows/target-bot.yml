@@ -1,4 +1,4 @@
-name: "DamDama Target Bot"
+name: "DamDama Target Bot 💫"
 
 on:
   schedule:
@@ -72,5 +72,6 @@ jobs:
           SHEET_WRITE_DELAY: '1.5'
         run: |
           python Scraper.py
+
 
 
