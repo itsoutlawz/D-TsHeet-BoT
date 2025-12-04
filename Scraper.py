@@ -402,6 +402,12 @@ class Sheets:
             self._apply_banding(self.dashboard, self.dashboard.col_count, start_row=0)
         except Exception as e:
             log_msg(f"Dashboard format failed: {e}")
+        try:
+            self.tags_sheet.format("A:K", {"textFormat":{"fontFamily":"Asimovian","fontSize":8,"bold":False}})
+            self.tags_sheet.format("A1:K1", {"textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},"horizontalAlignment":"CENTER","backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}})
+            self._apply_banding(self.tags, self.dashboard.col_count, start_row=0)
+        except Exception as e:
+            log_msg(f"Tags format failed: {e}")
 
     def _load_existing(self):
         self.existing={}
@@ -805,6 +811,7 @@ def main():
 
 if __name__=='__main__':
     main()
+
 
 
 
