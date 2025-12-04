@@ -727,7 +727,7 @@ def main():
                                     if len(cleaned)>5: trimmed.append("…")
                                     remark_detail=f"🔄 Updated: {', '.join(trimmed)}"
                                 else:
-                                    remark_detail="🔄 Updated (no key changes)"
+                                    remark_detail="Updated (no key changes)"
                             else:
                                 remark_detail="No data changes"
                             sheets.update_target_status(row, "Done 💀", f"{remark_detail} @ {get_pkt_time().strftime('%I:%M %p')}")
@@ -774,5 +774,6 @@ def main():
 
 if __name__=='__main__':
     main()
+
 
 
