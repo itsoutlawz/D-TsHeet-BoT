@@ -131,20 +131,31 @@ def to_absolute_url(href:str)->str:
 
 def get_friend_status(driver) -> str:
     try:
-        page = driver.page_source.lower()
+        page = driver.page_source.lower()   // sab lowercase for safe matching
+        text = driver.page_source           // uppercase detect karne ke liye original
 
-        if 'action="/follow/add/' in page or '/static/img/follow.svg' in page:
+        // --- NOT FOLLOWING ---
+        // FOLLOW button text exists (uppercase)
+        if 'FOLLOW' in text and '/follow/add/' in page:
             return "No"
 
-        if 'action="/follow/remove/' in page:
+        // --- FOLLOWING ---
+        // UNFOLLOW button text exists (uppercase)
+        if 'UNFOLLOW' in text and '/follow/remove/' in page:
             return "Yes"
 
-        if 'unfollow' in page:
+        // --- Safety fallback ---
+        // Agar text hi mil jaye to bhi enough hai
+        if 'UNFOLLOW' in text:
             return "Yes"
+        if 'FOLLOW' in text:
+            return "No"
 
         return ""
+
     except Exception:
         return ""
+
 
 
 def extract_text_comment_url(href:str)->str:
@@ -781,6 +792,7 @@ def main():
 
 if __name__=='__main__':
     main()
+
 
 
 
