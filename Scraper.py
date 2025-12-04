@@ -720,7 +720,7 @@ def main():
                             changed_fields=result.get("changed_fields",[]) if result else []
                             cleaned=[field for field in changed_fields if field not in HIGHLIGHT_EXCLUDE_COLUMNS]
                             if status=="new":
-                                remark_detail="New target profile added"
+                                remark_detail="✨ New Profile added"
                             elif status=="updated":
                                 if cleaned:
                                     trimmed=cleaned[:5]
@@ -774,3 +774,4 @@ def main():
 
 if __name__=='__main__':
     main()
+
