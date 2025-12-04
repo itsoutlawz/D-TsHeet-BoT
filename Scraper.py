@@ -133,11 +133,11 @@ def get_friend_status(driver) -> str:
     try:
         page = driver.page_source.lower()  // poora html lowercase
 
-        // Agar follow.svg mil raha ho → user abhi follow nahi kiya hua
+        // Agar follow.svg mil raha ho to user abhi follow nahi kiya hua
         if '/static/img/follow.svg' in page:
             return "No"
 
-        // Agar unfollow/remove button ho → already following
+        // Agar unfollow/remove button ho to already following
         if 'action="/follow/remove/' in page:
             return "Yes"
 
@@ -780,6 +780,7 @@ def main():
 
 if __name__=='__main__':
     main()
+
 
 
 
