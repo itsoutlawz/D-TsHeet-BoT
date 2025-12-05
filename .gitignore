@@ -26,6 +26,7 @@ wheels/
 .env.*.local
 
 # Credentials
+damadam_cookies_.pkl
 credentials.json
 google_credentials.json
 *.p12
