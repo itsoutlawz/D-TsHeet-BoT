@@ -59,7 +59,7 @@ jobs:
           DAMADAM_PASSWORD_2: ${{ secrets.DAMADAM_PASSWORD_2 || '' }}
           GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          MAX_PROFILES: ${{ github.event.inputs.max_profiles || '0' }}
+          MAX_PROFILES_PER_RUN: ${{ github.event.inputs.max_profiles || '0' }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
         run: |
           set -e  # Exit immediately if a command exits with a non-zero status

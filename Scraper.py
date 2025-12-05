@@ -1,4 +1,4 @@
-#!/usr/bin/env python4
+#!/usr/bin/env python3
 """
 DamaDam Target Bot - Single File v3.2.1
 - Processes targets from Target sheet (only "⚡ Pending" and variants)
@@ -9,6 +9,7 @@ DamaDam Target Bot - Single File v3.2.1
 """
 import os, sys, re, time, json, random
 from datetime import datetime, timedelta, timezone
+from typing import Union, Optional
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -89,7 +90,7 @@ def convert_relative_date_to_absolute(text:str)->str:
         dt=get_pkt_time()-timedelta(seconds=amt*s_map[unit]); return dt.strftime("%d-%b-%y")
     return text
 
-def detect_suspension_reason(page_source:str)->str|None:
+def detect_suspension_reason(page_source:str)->Optional[str]:
     if not page_source:
         return None
     lower=page_source.lower()
@@ -629,7 +630,7 @@ class Sheets:
         except Exception as e:
             log_msg(f"Normalize statuses failed: {e}")
 
-    def write_profile(self, profile:dict, old_row:int|None=None):
+    def write_profile(self, profile:dict, old_row:Optional[int]=None):
         nickname=(profile.get("NICK NAME") or "").strip()
         if not nickname: return {"status":"error","error":"Missing nickname","changed_fields":[]}
         if profile.get("LAST POST TIME"): profile["LAST POST TIME"]=convert_relative_date_to_absolute(profile["LAST POST TIME"])
@@ -681,7 +682,7 @@ def get_pending_targets(sheets:Sheets):
             out.append({'nickname':nick,'row':idx,'source':source})
     return out
 
-def scrape_profile(driver, nickname:str)->dict|None:
+def scrape_profile(driver, nickname:str)->Optional[dict]:
     url=f"https://damadam.pk/users/{nickname}/"
     try:
         log_msg(f"📍 Scraping: {nickname}")
