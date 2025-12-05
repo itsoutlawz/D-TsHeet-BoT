@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python4
 """
 DamaDam Target Bot - Single File v3.2.1
 - Processes targets from Target sheet (only "⚡ Pending" and variants)
@@ -9,7 +9,6 @@ DamaDam Target Bot - Single File v3.2.1
 """
 import os, sys, re, time, json, random
 from datetime import datetime, timedelta, timezone
-from typing import Union, Optional
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -90,7 +89,7 @@ def convert_relative_date_to_absolute(text:str)->str:
         dt=get_pkt_time()-timedelta(seconds=amt*s_map[unit]); return dt.strftime("%d-%b-%y")
     return text
 
-def detect_suspension_reason(page_source:str)->Optional[str]:
+def detect_suspension_reason(page_source:str)->str|None:
     if not page_source:
         return None
     lower=page_source.lower()
@@ -312,10 +311,8 @@ class Sheets:
     def __init__(self, client):
         self.client=client; self.ss=client.open_by_url(SHEET_URL)
         self.tags_mapping={}
-        self.ws=self._get_or_create("ProfilesTarget", cols=len(COLUMN_ORDER), rows=10000)
-        self._ensure_sheet_size(self.ws, 10000)  # Resize if needed
-        self.target=self._get_or_create("Target", cols=4, rows=5000)
-        self._ensure_sheet_size(self.target, 5000)  # Resize if needed
+        self.ws=self._get_or_create("ProfilesTarget", cols=len(COLUMN_ORDER))
+        self.target=self._get_or_create("Target", cols=4)
         self.tags_sheet=self._get_sheet_if_exists("Tags")
         # Ensure headers for ProfilesTarget
         try:
@@ -337,7 +334,7 @@ class Sheets:
             log_msg(f"Target header init failed: {e}")
         # Dashboard worksheet
         try:
-            self.dashboard = self._get_or_create("Dashboard", cols=11, rows=5000)
+            self.dashboard = self._get_or_create("Dashboard", cols=11)
             dvals = self.dashboard.get_all_values()
             expected = ["Run#","Timestamp","Profiles","Success","Failed","New","Updated","Unchanged","Trigger","Start","End"]
             if not dvals or dvals[0] != expected:
@@ -346,17 +343,7 @@ class Sheets:
             log_msg(f"Dashboard setup failed: {e}")
         self._format(); self._load_existing(); self._load_tags_mapping(); self.normalize_target_statuses()
 
-    def _ensure_sheet_size(self, sheet, required_rows):
-        """Resize sheet if current rows < required rows"""
-        try:
-            if sheet.row_count < required_rows:
-                log_msg(f"Resizing {sheet.title}: {sheet.row_count} -> {required_rows} rows")
-                self.ss.batch_update({"requests": [{"updateSheetProperties": {"fields": "gridProperties.rowCount", "properties": {"gridProperties": {"rowCount": required_rows}, "sheetId": sheet.id}}}]})
-                time.sleep(1)
-        except Exception as e:
-            log_msg(f"Sheet resize failed: {e}")
-
-    def _get_or_create(self,name,cols=20,rows=10000):
+    def _get_or_create(self,name,cols=20,rows=1000):
         try: return self.ss.worksheet(name)
         except WorksheetNotFound:
             return self.ss.add_worksheet(title=name, rows=rows, cols=cols)
@@ -396,48 +383,131 @@ class Sheets:
             else:
                 log_msg(f"Banding failed: {e}")
 
-    def _set_column_widths(self, sheet, col_widths):
-        """Set column widths using batch_update API (compatible with all gspread versions)"""
-        try:
-            requests = []
-            for col_letter, width in col_widths.items():
-                col_idx = ord(col_letter.upper()) - ord('A')
-                requests.append({
-                    "updateDimensionProperties": {
-                        "range": {
-                            "sheetId": sheet.id,
-                            "dimension": "COLUMNS",
-                            "startIndex": col_idx,
-                            "endIndex": col_idx + 1
-                        },
-                        "properties": {"pixelSize": width},
-                        "fields": "pixelSize"
-                    }
-                })
-            if requests:
-                self.ss.batch_update({"requests": requests})
-        except Exception as e:
-            log_msg(f"Set column widths failed: {e}")
-
     def _format(self):
-        # Simple formatting: headers only with bold + orange color
+
+        # ---------------- PROFILES TARGET ----------------
         try:
-            self.ws.format("A1:R1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
+            col_widths = {
+                "A": 50, "B": 160, "C": 140, "D": 250, "E": 100, "F": 60,
+                "G": 100, "H": 60, "I": 60, "J": 40, "K": 70, "L": 40,
+                "M": 50, "N": 50, "O": 50, "P": 250, "Q": 50, "R": 120
+            }
+            for col, w in col_widths.items():
+                self.ws.set_column_width(col, w)
+
+            self.ws.format(
+                "A:R",
+                {
+                    "backgroundColor": {"red":1,"green":1,"blue":1},
+                    "textFormat": {"fontFamily":"Asimovian", "fontSize":8},
+                    "horizontalAlignment": "CENTER",
+                    "verticalAlignment": "MIDDLE"
+                }
+            )
+            self.ws.format(
+                "A1:R1",
+                {
+                    "textFormat": {"bold": True, "fontSize": 9, "fontFamily":"Asimovian"},
+                    "horizontalAlignment": "CENTER",
+                    "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}
+                }
+            )
+            self._apply_banding(self.ws, len(COLUMN_ORDER), start_row=0)
+
         except Exception as e:
             log_msg(f"ProfilesTarget format failed: {e}")
+
+
+        # ---------------- TARGET SHEET ----------------
         try:
-            self.target.format("A1:E1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
+            col_widths = {"A":250, "B":110, "C":280, "D":80, "E":90}
+            for col, w in col_widths.items():
+                self.target.set_column_width(col, w)
+
+            self.target.format(
+                "A:E",
+                {
+                    "backgroundColor":{"red":1,"green":1,"blue":1},
+                    "textFormat":{"fontFamily":"Asimovian","fontSize":8},
+                    "horizontalAlignment":"CENTER",
+                    "verticalAlignment":"MIDDLE"
+                }
+            )
+            self.target.format(
+                "A1:E1",
+                {
+                    "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
+                    "horizontalAlignment":"CENTER",
+                    "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
+                }
+            )
+            self._apply_banding(self.target, self.target.col_count, start_row=0)
+
         except Exception as e:
             log_msg(f"Target format failed: {e}")
+
+
+        # ---------------- DASHBOARD SHEET ----------------
         try:
-            self.dashboard.format("A1:K1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
+            col_widths = {
+                "A":40, "B":130, "C":50, "D":50, "E":50,
+                "F":50, "G":50, "H":50, "I":60, "J":120, "K":120
+            }
+            for col, w in col_widths.items():
+                self.dashboard.set_column_width(col, w)
+
+            self.dashboard.format(
+                "A:K",
+                {
+                    "backgroundColor":{"red":1,"green":1,"blue":1},
+                    "textFormat":{"fontFamily":"Asimovian","fontSize":8},
+                    "horizontalAlignment":"CENTER",
+                    "verticalAlignment":"MIDDLE"
+                }
+            )
+            self.dashboard.format(
+                "A1:K1",
+                {
+                    "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
+                    "horizontalAlignment":"CENTER",
+                    "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
+                }
+            )
+            self._apply_banding(self.dashboard, self.dashboard.col_count, start_row=0)
+
         except Exception as e:
             log_msg(f"Dashboard format failed: {e}")
+
+
+        # ---------------- TAGS SHEET ----------------
         try:
             if self.tags_sheet:
-                self.tags_sheet.format("A1:D1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
+                col_widths = {"A":150, "B":150, "C":150, "D":150}
+                for col, width in col_widths.items():
+                    self.tags_sheet.set_column_width(col, width)
+
+                self.tags_sheet.format(
+                    "A:D",
+                    {
+                        "backgroundColor":{"red":1,"green":1,"blue":1},
+                        "textFormat":{"fontFamily":"Asimovian","fontSize":8},
+                        "horizontalAlignment":"CENTER",
+                        "verticalAlignment":"MIDDLE"
+                    }
+                )
+                self.tags_sheet.format(
+                    "A1:D1",
+                    {
+                        "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
+                        "horizontalAlignment":"CENTER",
+                        "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
+                    }
+                )
+                self._apply_banding(self.tags_sheet, self.tags_sheet.col_count, start_row=0)
+
         except Exception as e:
             log_msg(f"Tags format failed: {e}")
+
 
     def _load_existing(self):
         self.existing={}
@@ -559,7 +629,7 @@ class Sheets:
         except Exception as e:
             log_msg(f"Normalize statuses failed: {e}")
 
-    def write_profile(self, profile:dict, old_row:Optional[int]=None):
+    def write_profile(self, profile:dict, old_row:int|None=None):
         nickname=(profile.get("NICK NAME") or "").strip()
         if not nickname: return {"status":"error","error":"Missing nickname","changed_fields":[]}
         if profile.get("LAST POST TIME"): profile["LAST POST TIME"]=convert_relative_date_to_absolute(profile["LAST POST TIME"])
@@ -572,37 +642,28 @@ class Sheets:
             if c=="IMAGE": v=""
             elif c=="PROFILE LINK": v="Profile" if profile.get(c) else ""
             elif c=="LAST POST": v="Post" if profile.get(c) else ""
-            elif c=="FRIEND": v=profile.get(c,"")  # Don't clean FRIEND status
             else: v=clean_data(profile.get(c,""))
             vals.append(v)
         key=nickname.lower(); ex=self.existing.get(key)
         if ex:
             before={COLUMN_ORDER[i]:(ex['data'][i] if i<len(ex['data']) else "") for i in range(len(COLUMN_ORDER))}
             changed=[i for i,col in enumerate(COLUMN_ORDER) if col not in HIGHLIGHT_EXCLUDE_COLUMNS and (before.get(col,"") or "") != (vals[i] or "")]
-            # Delete old row first
-            try:
-                self.ws.delete_rows(ex['row'])
-            except Exception as e:
-                log_msg(f"Old row delete failed: {e}")
-            # Append new row at end
-            self.ws.append_row(vals); self._update_links(self.ws.row_count, profile)
+            self.ws.insert_row(vals,2); self._update_links(2, profile)
             if changed:
                 if ENABLE_CELL_HIGHLIGHT:
-                    self._highlight(self.ws.row_count,changed)
-                self._add_notes(self.ws.row_count,changed,before,vals)
-            self.existing[key]={'row':self.ws.row_count,'data':vals}
+                    self._highlight(2,changed)
+                self._add_notes(2,changed,before,vals)
+            try:
+                old=ex['row']+1 if ex['row']>=2 else 3; self.ws.delete_rows(old)
+            except Exception as e:
+                log_msg(f"Old row delete failed: {e}")
+            self.existing[key]={'row':2,'data':vals}
             status="updated" if changed else "unchanged"
             result={"status":status,"changed_fields":[COLUMN_ORDER[i] for i in changed]}
         else:
-            # Append new row at end
-            self.ws.append_row(vals); self._update_links(self.ws.row_count, profile); self.existing[key]={'row':self.ws.row_count,'data':vals}
+            self.ws.insert_row(vals,2); self._update_links(2, profile); self.existing[key]={'row':2,'data':vals}
             result={"status":"new","changed_fields":list(COLUMN_ORDER)}
         time.sleep(SHEET_WRITE_DELAY)
-        # Reapply banding to show alternating colors
-        try:
-            self._apply_banding(self.ws, len(COLUMN_ORDER), start_row=0)
-        except:
-            pass
         return result
 
 # Target processing
@@ -620,7 +681,7 @@ def get_pending_targets(sheets:Sheets):
             out.append({'nickname':nick,'row':idx,'source':source})
     return out
 
-def scrape_profile(driver, nickname:str)->Optional[dict]:
+def scrape_profile(driver, nickname:str)->dict|None:
     url=f"https://damadam.pk/users/{nickname}/"
     try:
         log_msg(f"📍 Scraping: {nickname}")
@@ -850,3 +911,23 @@ def main():
 
 if __name__=='__main__':
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
