@@ -420,126 +420,24 @@ class Sheets:
             log_msg(f"Set column widths failed: {e}")
 
     def _format(self):
-
-        # ---------------- PROFILES TARGET ----------------
+        # Simple formatting: headers only with bold + orange color
         try:
-            col_widths = {
-                "A": 50, "B": 160, "C": 140, "D": 250, "E": 100, "F": 60,
-                "G": 100, "H": 60, "I": 60, "J": 40, "K": 70, "L": 40,
-                "M": 50, "N": 50, "O": 50, "P": 250, "Q": 50, "R": 120
-            }
-            self._set_column_widths(self.ws, col_widths)
-
-            self.ws.format(
-                "A:R",
-                {
-                    "backgroundColor": {"red":1,"green":1,"blue":1},
-                    "textFormat": {"fontFamily":"Asimovian", "fontSize":8},
-                    "horizontalAlignment": "CENTER",
-                    "verticalAlignment": "MIDDLE"
-                }
-            )
-            self.ws.format(
-                "A1:R1",
-                {
-                    "textFormat": {"bold": True, "fontSize": 9, "fontFamily":"Asimovian"},
-                    "horizontalAlignment": "CENTER",
-                    "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}
-                }
-            )
-            self._apply_banding(self.ws, len(COLUMN_ORDER), start_row=0)
-
+            self.ws.format("A1:R1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
         except Exception as e:
             log_msg(f"ProfilesTarget format failed: {e}")
-
-
-        # ---------------- TARGET SHEET ----------------
         try:
-            col_widths = {"A":250, "B":110, "C":280, "D":80, "E":90}
-            self._set_column_widths(self.target, col_widths)
-
-            self.target.format(
-                "A:E",
-                {
-                    "backgroundColor":{"red":1,"green":1,"blue":1},
-                    "textFormat":{"fontFamily":"Asimovian","fontSize":8},
-                    "horizontalAlignment":"CENTER",
-                    "verticalAlignment":"MIDDLE"
-                }
-            )
-            self.target.format(
-                "A1:E1",
-                {
-                    "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
-                    "horizontalAlignment":"CENTER",
-                    "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
-                }
-            )
-            self._apply_banding(self.target, self.target.col_count, start_row=0)
-
+            self.target.format("A1:E1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
         except Exception as e:
             log_msg(f"Target format failed: {e}")
-
-
-        # ---------------- DASHBOARD SHEET ----------------
         try:
-            col_widths = {
-                "A":40, "B":130, "C":50, "D":50, "E":50,
-                "F":50, "G":50, "H":50, "I":60, "J":120, "K":120
-            }
-            self._set_column_widths(self.dashboard, col_widths)
-
-            self.dashboard.format(
-                "A:K",
-                {
-                    "backgroundColor":{"red":1,"green":1,"blue":1},
-                    "textFormat":{"fontFamily":"Asimovian","fontSize":8},
-                    "horizontalAlignment":"CENTER",
-                    "verticalAlignment":"MIDDLE"
-                }
-            )
-            self.dashboard.format(
-                "A1:K1",
-                {
-                    "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
-                    "horizontalAlignment":"CENTER",
-                    "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
-                }
-            )
-            self._apply_banding(self.dashboard, self.dashboard.col_count, start_row=0)
-
+            self.dashboard.format("A1:K1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
         except Exception as e:
             log_msg(f"Dashboard format failed: {e}")
-
-
-        # ---------------- TAGS SHEET ----------------
         try:
             if self.tags_sheet:
-                col_widths = {"A":150, "B":150, "C":150, "D":150}
-                self._set_column_widths(self.tags_sheet, col_widths)
-
-                self.tags_sheet.format(
-                    "A:D",
-                    {
-                        "backgroundColor":{"red":1,"green":1,"blue":1},
-                        "textFormat":{"fontFamily":"Asimovian","fontSize":8},
-                        "horizontalAlignment":"CENTER",
-                        "verticalAlignment":"MIDDLE"
-                    }
-                )
-                self.tags_sheet.format(
-                    "A1:D1",
-                    {
-                        "textFormat":{"bold":True,"fontSize":9,"fontFamily":"Asimovian"},
-                        "horizontalAlignment":"CENTER",
-                        "backgroundColor":{"red":1.0,"green":0.7,"blue":0.2}
-                    }
-                )
-                self._apply_banding(self.tags_sheet, self.tags_sheet.col_count, start_row=0)
-
+                self.tags_sheet.format("A1:D1", {"textFormat": {"bold": True, "fontSize": 9}, "backgroundColor": {"red":1.0,"green":0.7,"blue":0.2}})
         except Exception as e:
             log_msg(f"Tags format failed: {e}")
-
 
     def _load_existing(self):
         self.existing={}
