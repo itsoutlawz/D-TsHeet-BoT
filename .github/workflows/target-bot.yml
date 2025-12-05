@@ -1,6 +1,9 @@
 name: "DamDama Target Bot ✨"
 
+# Only trigger on push to main or manually
 on:
+  push:
+    branches: [ main ]
   schedule:
     - cron: '0 */1 * * *'   # Every hour at HH:00
   workflow_dispatch:
@@ -14,12 +17,21 @@ on:
         required: false
         default: '10'
 
+# Environment variables available to all jobs in the workflow
+env:
+  PYTHON_VERSION: '3.10'
+  MIN_DELAY: '0.3'
+  MAX_DELAY: '0.4'
+  PAGE_LOAD_TIMEOUT: '30'
+  SHEET_WRITE_DELAY: '1.0'
+
 jobs:
-  run-jobs:
+  run-bot:
+    name: Run Target Bot
     runs-on: ubuntu-latest
     timeout-minutes: 59
-
-    # Define all environment variables at the job level
+    
+    # Job-level environment variables
     env:
       DAMADAM_USERNAME: ${{ secrets.DAMADAM_USERNAME }}
       DAMADAM_PASSWORD: ${{ secrets.DAMADAM_PASSWORD }}
@@ -27,12 +39,15 @@ jobs:
       DAMADAM_PASSWORD_2: ${{ secrets.DAMADAM_PASSWORD_2 }}
       GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
       GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      MAX_PROFILES_PER_RUN: ${{ github.event.inputs.max_profiles != '' && github.event.inputs.max_profiles || '0' }}
-      BATCH_SIZE: ${{ github.event.inputs.batch_size != '' && github.event.inputs.batch_size || '10' }}
-      MIN_DELAY: '0.3'
-      MAX_DELAY: '0.4'
-      PAGE_LOAD_TIMEOUT: '30'
-      SHEET_WRITE_DELAY: '1.0'
+      MAX_PROFILES_PER_RUN: ${{ github.event.inputs.max_profiles || '0' }}
+      BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
+      
+    # Check if required secrets are set
+    if: |
+      secrets.DAMADAM_USERNAME != '' && 
+      secrets.DAMADAM_PASSWORD != '' && 
+      secrets.GOOGLE_SHEET_URL != '' && 
+      secrets.GOOGLE_CREDENTIALS_JSON != ''
 
     steps:
       - name: Checkout
